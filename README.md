@@ -9,8 +9,10 @@ Some arrows wrap around the edge: instead of leaving, they turn the corner and r
 border, so they can be held up by arrows on a completely different side of the board.
 
 Everything is drawn with a custom `Canvas` renderer: paper-warm background, navy ink arrows, blue
-accents and red lives, with smooth slide-off animations. No game engine, no art assets, no
-third-party runtime dependencies.
+accents and red lives, with smooth slide-off animations. No game engine and no art assets; the
+only third-party library is Google Mobile Ads for the optional rewarded ad that buys a life back.
+Run out of lives and you can watch a short ad to keep the same level going with one heart, for as
+many times as you run out.
 
 ## How it plays
 
@@ -20,7 +22,11 @@ third-party runtime dependencies.
 - **Wrapping arrows** have a blue clockwise loop around them. They turn clockwise at the board
   edge and run along the border to the next corner, so their route covers two lanes. They start
   appearing from level 4 onward.
-- **Three lives per level.** Lose all three and the same level restarts.
+- **Three lives per level.** Lose all three and the out-of-lives card appears.
+- **Watch an ad for one more life.** The card offers a rewarded ad whenever one is loaded;
+  finishing it restores a single heart and the same level carries on. This is offered every time
+  you run out, not once per level. With no ad ready (offline, no Play services) the button reads
+  `AD NOT READY` and a tap anywhere else on the card restarts the level as before.
 - **Two hints per level.** A hint rings the easiest arrow that can leave right now.
 - Clear every arrow and tap the card to move on. The current level is saved, so the game resumes
   where you left off.
@@ -50,7 +56,8 @@ seeds and keeps the fullest layout.
 - **Header** — level number, three lives, cleared count and a progress bar.
 - **Board** — tap an arrow to remove it.
 - **Footer** — `HINT · n` and `RESTART`.
-- **Cards** — level cleared (tap to continue) and out of lives (tap to retry).
+- **Cards** — level cleared (tap to continue) and out of lives (tap to retry, or watch an ad
+  for one more heart).
 
 ## Project layout
 
@@ -62,16 +69,17 @@ app/src/main/java/com/arrowdrop/
     ├── Routes.kt                # straight and corner-turning exit routes
     ├── Board.kt                 # grid, route blocking, removal, exit distance
     ├── Levels.kt                # level curve + guaranteed-solvable generator
-    ├── PuzzleSession.kt         # lives, hints, progress (pure Kotlin)
+    ├── PuzzleSession.kt         # lives, hints, progress, ad-granted lives (pure Kotlin)
     ├── Palette.kt               # paper, ink, blue, red
     ├── ArrowArt.kt              # arrow/loop/heart glyphs, unit-space paths
+    ├── RewardedLives.kt         # rewarded ad wrapper (Google Mobile Ads)
     ├── Save.kt                  # SharedPreferences level progress
     └── GameView.kt              # Canvas renderer, animation loop, HUD, gestures
 app/src/test/java/com/arrowdrop/game/
     ├── RoutesTest.kt            # corner turns, route cells, no duplicate cells
     ├── BoardTest.kt             # lane rules, wrap blocking, removal, edge cases
     ├── LevelsTest.kt            # level curve, determinism, solvability, wrap arrows
-    └── PuzzleSessionTest.kt     # lives, clearing, progress, hints
+    └── PuzzleSessionTest.kt     # lives, ad-granted lives, clearing, progress, hints
 ```
 
 ## Build
@@ -80,10 +88,24 @@ Requires the Android SDK (API 34) and JDK 17.
 
 ```bash
 # local.properties needs sdk.dir=/path/to/android-sdk
-./gradlew testDebugUnitTest   # 48 engine tests
+./gradlew testDebugUnitTest   # 52 engine tests
 ./gradlew assembleDebug       # debug APK
 ./gradlew installDebug        # install on a connected device
 ```
 
-`minSdk 24`, `targetSdk 34`, Kotlin 1.9 / AGP 8.2, portrait only, no runtime permissions.
-# ArrowDrop
+`minSdk 24`, `targetSdk 34`, Kotlin 2.1 / AGP 8.2, Google Mobile Ads 24.2, portrait only,
+`INTERNET` permission for ads.
+
+## Ads
+
+The rewarded ad is wired to Google's official test values: app ID
+`ca-app-pub-3940256099942544~3347511713` in `AndroidManifest.xml` and rewarded unit
+`ca-app-pub-3940256099942544/5224354917` in `RewardedLives.kt`. Google serves a test ad for those,
+so the flow can be exercised without an AdMob account. Replace both with the IDs from your own
+AdMob app before publishing — a release build with test IDs earns nothing and is against AdMob
+policy. The ad is throttled to one load attempt every 30 seconds after a failure, and the card
+falls back to `AD NOT READY` whenever no ad is loaded.
+
+The SDK adds its own permissions (`INTERNET`, `ACCESS_NETWORK_STATE`, `AD_ID` and the ad services
+permissions) and declares its ad activity. Before publishing, add Google's UMP consent flow for
+regions that require it and complete the Play Store data-safety declarations for advertising ID.
